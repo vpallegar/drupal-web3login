@@ -1,0 +1,5 @@
+web3login.admin:
+  title: 'Web3Login settings'
+  description: 'Configuration page for Web3 Login module.'
+  parent: system.admin_config_system
+  route_name: web3login.admin_settings_form

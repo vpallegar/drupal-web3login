@@ -1,0 +1,5 @@
+name: Web3 Login
+description: Web3 Wallet Login
+type: module
+configure: web3login.admin
+core_version_requirement: ^8 || ^9

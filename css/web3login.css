@@ -1,0 +1,29 @@
+/**
+ * @file
+ * The Web3 Login screens.
+ */
+
+html {
+  height: 100%;
+}
+body {
+  background: white;
+}
+
+.web3login-form button.web3login {
+}
+.web3login-form input[type="submit"], 
+.web3login-form button.form-submit {
+  text-transform: uppercase;
+  outline: 0;
+  width: 100%;
+  border: 0;
+  padding: 15px;
+  color: #FFFFFF;
+  font-size: 14px;
+  -webkit-transition: all 0.3 ease;
+  transition: all 0.3 ease;
+  cursor: pointer;
+  border-radius: 0.25em;
+  font-weight: bold;
+}

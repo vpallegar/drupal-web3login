@@ -1,0 +1,11 @@
+web3login-library:
+  css:
+    theme:
+      css/web3login.css: {}
+  js:
+    https://cdn.jsdelivr.net/npm/web3@latest/dist/web3.min.js: { type: external, minified: true }
+    https://cdn.jsdelivr.net/gh/chrisdickinson/bops@master/dist/bops.js: { type: external }
+    js/web3login.js: {}
+  dependencies:
+    - core/jquery
+    - core/drupal

@@ -1,0 +1,156 @@
+<?php
+
+/**
+ * @file
+ * The module file for web3login module.
+ */
+
+use Drupal\Core\Routing\RouteMatchInterface;
+use Drupal\Core\Form\FormStateInterface;
+use Drupal\Core\Entity\EntityTypeInterface;
+use Drupal\Core\Field\BaseFieldDefinition;
+
+/**
+ * Implements hook_help().
+ * 
+ * {@inheritdoc}
+ */
+function web3login_help($route_name, RouteMatchInterface $route_match) {
+  switch ($route_name) {
+    case 'help.page.web3login':
+      $output = '';
+      $output .= '<h3>' . t('Settings') . '</h3>';
+      $output .= '<p>' . t('Web3Login settings: /admin/config/web3login') . '</p>';
+      return $output;
+      break;
+  }
+}
+
+
+/**
+ * Implements hook_form_FORM_ID_alter().
+ *
+ * Add the web3 wallet public key field to user's account page.
+ *
+ * @see \Drupal\user\ProfileForm::form()
+ */
+function web3login_form_user_form_alter(&$form, FormStateInterface $form_state) {
+  if (web3_login_settings('active')) {
+
+    $form['web3login_details'] = [
+      '#type' => 'details',
+      '#title' => t('Web3 Login settings'),
+      '#open' => TRUE,
+      '#weight' => 5,
+    ];
+    $account = $form_state->getFormObject()->getEntity();
+    if (!\Drupal::currentUser()->isAnonymous() && $account->id()) {
+      $account_data = \Drupal::service('user.data')->get('web3login', $account->id(), 'address');
+    }
+    $form['web3login_details']['web3login'] = [
+      '#type' => 'textfield',
+      '#title' => t('Web3 Login Wallet Address'),
+      '#default_value' => $account_data ?? '',
+      '#description' => t('Enter the users public address here.  This will allow for this user to login with their Web3 wallet instead of a user/pass.'),
+    ];
+    $form['actions']['submit']['#submit'][] = 'web3login_profile_form_submit';
+  }
+
+}
+
+/**
+ * Submit callback for the user profile form to save the web3login wallet key.
+ */
+function web3login_profile_form_submit($form, FormStateInterface $form_state) {
+  $account = $form_state->getFormObject()->getEntity();
+  if ($account->id() && $form_state->hasValue('web3login')) {
+    \Drupal::service('user.data')->set('web3login', $account->id(), 'address', (string) $form_state->getValue('web3login'));
+  }
+}
+
+function web3login_preprocess_web3login(&$variables) {  
+  $path = \Drupal::service('path.current')->getPath();
+  $module_path = \Drupal::service('extension.path.resolver')->getPath('module', 'web3login');
+
+  $variables['#attached']['library'][] = 'web3login/web3login-library';
+
+  // Able to use custom variables
+  $variables['path'] = $path;
+  $variables['base_path'] = base_path();
+  $variables['active'] = web3_login_settings('active');
+  $variables['network'] = web3_login_settings('network');
+}
+
+/**
+ * Implements settings for web3 login pages.
+ */
+function web3_login_settings($arguments) {
+  $web3login_settings = \Drupal::config('web3login.settings');
+  $active = $web3login_settings->get('active', '');
+  $network = $web3login_settings->get('network', '');
+
+  switch ($arguments) {
+    case "active":
+      $web3login = $active ?: false;
+    break;
+    case "network":
+      $web3login = $network ?: '';
+    break;
+    default:
+      $web3login = '';
+  }
+
+  return $web3login;
+}
+
+/**
+ * Implements hook_theme_registry_alter
+ *
+ * {@inheritdoc}
+ */
+function web3login_theme_registry_alter(&$theme_registry) {
+  $path = \Drupal::service('extension.path.resolver')->getPath('module', 'web3login');
+  // Check if file exists in the theme directory.
+  $theme = \Drupal::theme()->getActiveTheme();
+  if (file_exists($theme->getPath().'/templates/page--web3login.html.twig')) {
+    $path = \Drupal::service('extension.path.resolver')->getPath('theme', $theme->getName());    
+  }
+
+  $theme_registry['page__web3login'] = array(
+    'preprocess functions' => array(
+      0 => 'web3login_preprocess_web3login',
+    ),
+    'template' => 'page--web3login',
+    'path' => $path. '/templates',
+    'render element' => 'page',
+    'type' => 'base_theme_engine',
+  );
+}
+
+
+/**
+ * Implements hook_form_alter().
+ * @param $form
+ * @param \Drupal\Core\Form\FormStateInterface $form_state
+ * @param $form_id
+ */
+function web3login_form_alter(&$form, \Drupal\Core\Form\FormStateInterface $form_state, $form_id) {
+  $allowed_forms = ['user_login_form'];
+  if (in_array($form_id, $allowed_forms, TRUE)) {
+
+    // Add web3 library to the form if active.
+    if (web3_login_settings('active') && !empty(web3_login_settings('network'))) {
+
+      $form['#attached']['drupalSettings']['web3login']['network'] = web3_login_settings('network');
+      $form['#attached']['library'][] = 'web3login/web3login-library';
+
+      // Add web3 login button
+      $form['web3login'] = [
+        '#type' => 'inline_template',
+        '#weight' => -1,
+        '#template' => '<button type="button" id="web3loginConnect">' . t('Login with web3 wallet') . '</button><div id="messageString"></div><div id="messageHex"></div><div id="signature"></div><div id="recoveredAddress"></div>',
+      ];
+    }
+  }
+}
+
