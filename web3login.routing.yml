@@ -13,6 +13,8 @@ web3login.verify_login:
     _controller: '\Drupal\web3login\Controller\Web3LoginController::verifyLogin'
   requirements:
     _permission: 'access content'
+  options:
+    no_cache: 'TRUE'
 
 web3login.error:
   path: /web3login/error

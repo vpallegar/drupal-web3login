@@ -70,6 +70,7 @@
                 verifyMessage();
             } catch (err) {
                 console.error(err);
+                resetForm();
             }
         }
 
@@ -86,15 +87,26 @@
                     signMessage();
                 }
             } catch (err) {
-                alert("Error: " + err);
+                console.error(err);
+                resetForm();
             }
         }
         web3LoginButton.on('click', function () {
-            web3Login();
+            try{
+                web3Login();
+            } catch (err) {
+                console.error(err);
+                resetForm();
+            }
         });
 
         var finalize_login = function() {
             window.location.href = '/web3login/verify-login?address=' + globalAccount + '&nonce=' + nonce + '&sig=' + globalSignature;
+        }
+
+        var resetForm = function() {
+            web3LoginButton.html(web3LoginButtonOrgValue);
+            web3LoginButton.disabled = false;
         }
       }
     };

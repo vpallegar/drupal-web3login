@@ -1,0 +1,78 @@
+<?php
+
+/**
+ * @file
+ */
+
+/**
+ * Implements hook_schema().
+ */
+function web3login_schema() {
+
+  // web3login_log table for logging when a web3login occurs.
+  $schema['web3login_log'] = [
+    // Specification for web3login_log.
+    'description' => 'Web3 Login Log',
+    'fields' => [
+      'id' => [
+        'description' => 'The primary identifier for this item.',
+        'type' => 'serial',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ],
+      'uid' => [
+        'description' => 'The user account which logged in.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ],
+      'status' => [
+        'description' => 'The login status - 0:rejected, 1:successful',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ],
+      'ipaddr' => [
+        'description' => 'The user ip address which logged in',
+        'type' => 'varchar',
+        'length' => 50,
+        'not null' => FALSE,
+      ],
+      'nonce' => [
+        'description' => 'The nonce used to login.',
+        'type' => 'datetime',
+        'mysql_type' => 'datetime',
+        'not null' => TRUE,
+      ],
+      'created' => [
+        'description' => 'The Unix timestamp when the item was created.',
+        'type' => 'int',
+        'mysql_type' => 'timestamp',
+        'not null' => FALSE
+      ],
+    ],
+    'indexes' => [
+      'uid'        => ['uid'],
+      'nonce'        => ['nonce'],
+    ],
+    'unique keys' => [
+      'id'     => ['id'],
+    ],
+    'primary key' => ['id'],
+  ];
+
+  return $schema;
+}
+
+/**
+ * Create web3login_log schema.
+ */
+function web3login_update_8001() {
+
+  // Create new web3login_log table if doesnt exist.
+  $schema = web3login_schema();
+  db_create_table('web3login_log', $schema['web3login_log']);
+
+}

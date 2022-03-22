@@ -3,12 +3,14 @@
 namespace Drupal\web3login\Controller;
 
 use Drupal\Core\Controller\ControllerBase;
+use Drupal\Core\Session\AccountInterface;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Elliptic\EC;
 use kornrunner\keccak;
+use Drupal\Core\Database\Connection;
 
 use Symfony\Component\HttpFoundation\Response;
 
@@ -19,15 +21,37 @@ use Symfony\Component\HttpFoundation\Response;
  */
 class Web3LoginController extends ControllerBase {
 
+  /**
+   * The logger service.
+   *
+   * @var \Psr\Log\LoggerInterface
+   */
   private LoggerInterface $logger;
 
+  /**
+   * Active database connection.
+   *
+   * @var \Drupal\Core\Database\Connection
+   */
+  protected $database;
+
+  /**
+   * Default signature text.
+   *
+   */
   private string $MessageText = 'Allow login at ';
+
+  /**
+   * Current user.
+   */
+  protected $currentUser;
 
   /**
    * Constructs a Web3LoginController object.
    */
-  public function __construct(LoggerInterface $logger) {
+  public function __construct(LoggerInterface $logger, Connection $database) {
     $this->logger = $logger;
+    $this->database = $database;
   }
 
   /**
@@ -37,14 +61,15 @@ class Web3LoginController extends ControllerBase {
     $entity_type_manager = $container->get('entity_type.manager');
 
     return new static(
-      $container->get('logger.factory')->get('web3login')
+      $container->get('logger.factory')->get('web3login'),
+      $container->get('database')
     );
   }
 
   /**
    * Authorize web3login user login.
    */
-  public function verifyLogin(Request $request) {
+  public function verifyLogin(Request $request): Response {
     $sig = $request->get('sig') ?? NULL;
     $address = $request->get('address') ?? NULL;
     $nonce = $request->get('nonce') ?? NULL;
@@ -59,18 +84,23 @@ class Web3LoginController extends ControllerBase {
     foreach($wallet_addresses as $wallet_uid=>$wallet_address) {
       if (strtolower($address) === strtolower($wallet_address)) {
         $user_wallet_address = $wallet_address;
-        $user = \Drupal::entityTypeManager()->getStorage('user')->load($wallet_uid);
+        $this->currentUser = \Drupal::entityTypeManager()->getStorage('user')->load($wallet_uid);
         break;
       } 
     }
 
     // Make sure we have a user.
-    if (!$user) {
-      return new Response( $this->t('User not found'), 404);
+    if (!$this->currentUser) {
+      return $this->respondWithError('User not found');
+    }
+
+    if (!$this->checkNonceIsValid($this->currentUser, $nonce)) {
+      $this->log($this->currentUser, 0, $nonce);
+      return $this->respondWithError('Access denied');
     }
 
     if (empty($user_wallet_address)) {
-      return new Response($this->t('User has no wallet address set.'), 400);
+      return $this->respondWithError('User has no wallet address set.');
     }
 
     $message = $this->MessageText . $nonce;
@@ -78,21 +108,23 @@ class Web3LoginController extends ControllerBase {
 
 
     if (!$verify_signature_wallet) {
+      $this->log($this->currentUser, 0, $nonce);
       return $this->accessDenied();
     }
 
     // Finalize login
-    user_login_finalize($user);
+    user_login_finalize($this->currentUser);
+    $this->log($this->currentUser, 1, $nonce);
 
     // Redirect to the user's profile page.
-    return new RedirectResponse("/user/{$user->id()}");
+    return new RedirectResponse("/user/{$this->currentUser->id()}");
   }
 
 
   /**
    * Reject web3login user login.
    */
-  public function accessDenied(): array {
+  public function accessDenied(): Response {
     return $this->respondWithError('Access denied');
   }
 
@@ -147,17 +179,62 @@ class Web3LoginController extends ControllerBase {
    * @param string $message
    *   The error message to log.
    *
-   * @return string[]
-   *   A render array.
    */
-  private function respondWithError(string $message): array {
+  private function respondWithError(string $message) {
     if (!empty($message)) {
       $this->logger->error($message);
     }
+    
+    \Drupal::messenger()->addError($this->t($message));
+    return $this->redirect('user.login');
+  }
 
-    return [
-      '#markup' => "<p>{$message}</p>",
-    ];
+  /**
+   * Check if nonce provided for user is still valid.
+   */
+  private function checkNonceIsValid(AccountInterface $user, int $nonce) {
+    $nonce_log = $this->database->select('web3login_log', 'wl')
+      ->fields('wl', ['nonce'])
+      ->condition('uid', $user->id())
+      ->condition('status', 1)
+      ->condition('nonce', date("Y-m-d H:i:s", $nonce / 1000), '>=')
+      ->execute()
+      ->fetchField();
+
+    // If record exist then this nonce was used or a newer one was created
+    if ($nonce_log) {
+      return FALSE;
+    }
+
+    return TRUE;
+  }
+
+  /**
+   * Logs an error message.
+   * 
+   * @param AccountInterface $user
+   * @param int $status
+   * @param int $nonce
+   */
+  private function log(AccountInterface $user, int $status, int $nonce) : void {
+    
+        // Lets add weblogin_log.
+        $logging = $this->database->insert('web3login_log');
+        $logging->fields([
+          'uid',
+          'status',
+          'ipaddr',
+          'nonce',
+          'created',
+        ]);
+        $logging->values([
+          $user->id(),
+          $status,
+          $_SERVER['REMOTE_ADDR'],
+          date("Y-m-d H:i:s", $nonce / 1000),
+          date("Y-m-d H:i:s"),
+        ]);
+        $logging->execute();
   }
 
 
