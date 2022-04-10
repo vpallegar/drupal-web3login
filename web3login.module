@@ -148,7 +148,7 @@ function web3login_form_alter(&$form, \Drupal\Core\Form\FormStateInterface $form
       $form['web3login'] = [
         '#type' => 'inline_template',
         '#weight' => -1,
-        '#template' => '<button type="button" id="web3loginConnect">' . t('Login with web3 wallet') . '</button><div id="messageString"></div><div id="messageHex"></div><div id="signature"></div><div id="recoveredAddress"></div>',
+        '#template' => '<button type="button" id="web3loginConnect">' . t('Login with web3 wallet') . '</button>',
       ];
     }
   }
