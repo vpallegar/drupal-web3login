@@ -25,7 +25,6 @@
             const account = accounts[0];
             globalAccount = accounts[0];
             await signMessage();
-            await verifyMessage();
             
         }
 
